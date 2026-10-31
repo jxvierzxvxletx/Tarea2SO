@@ -1,10 +1,9 @@
-// cfg.cpp - [A] Configuracion de entrada (informe 3.1)
 #include "cfg.hpp"
 #include <fstream>
+#include <stdlib.h>
 
-// Valores por defecto. El informe dice que el archivo es OPCIONAL y que los
-// retardos van entre 50 y 300 ms. La posicion inicial por defecto es un SUPUESTO
-// (el informe la deja al config.txt): puma al centro, perros en las casillas 0 a 11.
+// Valores por defecto (cuando no hay config.txt):
+// retardos de 50 a 300 ms (informe), puma en la 25 y perros al azar entre 0 y 24.
 Cfg::Cfg()
 {
     filas = 5;
@@ -15,10 +14,30 @@ Cfg::Cfg()
     retardomin = 50;
     retardomax = 300;
     semilla = 1;
-    posicionpuma = 12;
+    posicionpuma = 25;
+    repartirPerrosAlAzar();
+}
+
+// Elige 12 casillas distintas de la cuadricula (0 a 24) para los perros.
+// Usa la semilla, asi que con la misma semilla sale siempre la misma disposicion.
+void Cfg::repartirPerrosAlAzar()
+{
+    unsigned int estado = semilla;
+    vector <int> libres;
+    for (int i = 0; i < filas * columnas; i++)
+    {
+        if (i != posicionpuma)
+        {
+            libres.push_back(i);
+        }
+    }
+    posicionesperros.clear();
     for (int i = 0; i < cantidadperros; i++)
     {
-        posicionesperros.push_back(i);
+        int tam = libres.size();
+        int indice = rand_r(&estado) % tam;
+        posicionesperros.push_back(libres[indice]);
+        libres.erase(libres.begin() + indice);
     }
 }
 
@@ -27,11 +46,12 @@ bool Cfg::cargarConfig(string ruta)
     ifstream archivo(ruta);
     if (!archivo.is_open())
     {
-        cout << "Error no se pudo abrir el archivo de configuracion " << ruta << endl;
+        cout << "Error: no se pudo abrir el archivo de configuracion " << ruta << endl;
         return false;
     }
 
     // Se lee "palabra valor(es)" hasta que se acabe el archivo, igual que con cin
+    bool leyoperros = false;
     string clave;
     while (archivo >> clave)
     {
@@ -53,6 +73,7 @@ bool Cfg::cargarConfig(string ruta)
         }
         else if (clave == "perros")
         {
+            leyoperros = true;
             posicionesperros.clear();
             for (int i = 0; i < cantidadperros; i++)
             {
@@ -63,20 +84,26 @@ bool Cfg::cargarConfig(string ruta)
         }
         else
         {
-            cout << "Error palabra desconocida en la configuracion: " << clave << endl;
+            cout << "Error: palabra desconocida en la configuracion: " << clave << endl;
             return false;
         }
         if (archivo.fail())
         {
-            cout << "Error valor invalido o faltante en: " << clave << endl;
+            cout << "Error: valor invalido o faltante en: " << clave << endl;
             return false;
         }
+    }
+
+    // Si el archivo no dice donde van los perros, se reparten al azar con la semilla ya leida
+    if (leyoperros == false)
+    {
+        repartirPerrosAlAzar();
     }
 
     // Retardos coherentes
     if (retardomin < 0 || retardomax < retardomin)
     {
-        cout << "Error retardos invalidos (debe cumplirse 0 <= retardomin <= retardomax)" << endl;
+        cout << "Error: retardos invalidos (debe cumplirse 0 <= retardomin <= retardomax)" << endl;
         return false;
     }
 
@@ -88,14 +115,14 @@ bool Cfg::cargarConfig(string ruta)
     {
         if (todas[i] < 0 || todas[i] >= getTotalCasillas())
         {
-            cout << "Error la casilla " << todas[i] << " no existe (validas: 0 a " << getTotalCasillas() - 1 << ")" << endl;
+            cout << "Error: la casilla " << todas[i] << " no existe (validas: 0 a " << getTotalCasillas() - 1 << ")" << endl;
             return false;
         }
         for (int j = 0; j < i; j++)
         {
             if (todas[i] == todas[j])
             {
-                cout << "Error la casilla " << todas[i] << " esta repetida en la disposicion inicial" << endl;
+                cout << "Error: la casilla " << todas[i] << " esta repetida en la disposicion inicial" << endl;
                 return false;
             }
         }
