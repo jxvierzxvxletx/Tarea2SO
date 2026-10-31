@@ -1,32 +1,33 @@
-// cfg.hpp - [A] Configuracion de entrada (informe 3.1)
-#ifndef CFG_HPP
+ #ifndef CFG_HPP
 #define CFG_HPP
 #include <iostream>
 #include <vector>
 #include <string>
 using namespace std;
 
-// Formato de config.txt (una palabra clave por linea):
+// Formato de config.txtd
 //   retardomin 50
 //   retardomax 300
 //   semilla 42
-//   puma 12
+//   puma 25
 //   perros 0 1 2 3 4 5 6 7 8 9 10 11
+// Si no hay config.txt (o no trae "perros"), los 12 perros se reparten al azar
+// entre las posiciones 0 a 24. Si no trae "puma", el puma empieza en la 25.
 class Cfg
 {
     private:
-        // Datos fijos que da el informe (2.1 y 2.2)
         int filas;
         int columnas;
-        int casillastrono;        // SUPUESTO: confirmar con el diagrama del informe
+        int casillastrono;        // 3: posiciones 25 (T), 26 (SI) y 27 (SD)
         int cantidadperros;
         int capturasvictoria;
-        // Datos que puede cambiar el config.txt (3.1)
+        // Datos que puede cambiar el config.txt (informe 3.1)
         int retardomin;           // ms
         int retardomax;           // ms
         unsigned int semilla;
         int posicionpuma;
         vector <int> posicionesperros;
+        void repartirPerrosAlAzar();
     public:
         Cfg();
         bool cargarConfig(string ruta);
