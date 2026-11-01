@@ -1,4 +1,3 @@
-// argumentos.cpp - [A] Lectura de ./torneo N M [config.txt] (informe 3)
 #include "argumentos.hpp"
 
 Argumentos::Argumentos()
@@ -9,8 +8,6 @@ Argumentos::Argumentos()
     hayconfig = false;
 }
 
-// Convierte un texto como "12" en el numero 12.
-// Devuelve -1 si el texto esta vacio, es muy largo o tiene algo que no sea un digito.
 int Argumentos::convertirNumero(string texto)
 {
     int tam = texto.size();
@@ -32,7 +29,6 @@ int Argumentos::convertirNumero(string texto)
 
 bool Argumentos::leer(int argc, char * argv[])
 {
-    // argv[0] es el nombre del programa, asi que se esperan 3 o 4 argumentos en total
     if (argc != 3 && argc != 4)
     {
         cout << "Uso: ./torneo N M [config.txt]" << endl;

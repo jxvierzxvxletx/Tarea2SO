@@ -21,7 +21,6 @@ class Cfg
         int casillastrono;        // 3: posiciones 25 (T), 26 (SI) y 27 (SD)
         int cantidadperros;
         int capturasvictoria;
-        // Datos que puede cambiar el config.txt (informe 3.1)
         int retardomin;           // ms
         int retardomax;           // ms
         unsigned int semilla;
