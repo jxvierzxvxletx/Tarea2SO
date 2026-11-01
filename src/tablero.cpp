@@ -55,10 +55,57 @@ Tablero::Tablero()
     conexiones[26][0] = true;
     conexiones[0][26] = true;
     
-
-
-
-
+    
 
 }
 
+
+bool Tablero::seconectann(int origen, int destino)
+{
+    if (origen < 0 || origen >= 28 || destino < 0 || destino >= 28)
+    {
+        return false;
+    }
+
+    return conexiones[origen][destino];
+}
+
+int Tablero:: consultarposicion (int posicion )
+{
+    if(posicion < 0  || posicion >= 28)
+    {
+        return -1;
+    }
+    else
+    {
+        return posiciones[posicion];
+    }
+
+}
+
+bool Tablero::colocarficha(int posicion, int ficha)
+{
+    
+
+    if( posicion < 0 || posicion >=28 || ficha < 1 || ficha > 13  )
+    {
+        return false;
+    }
+    if ( posiciones[posicion] != 0 )
+    {
+        return false;
+    }
+
+    for(int i = 0; i < 28; i ++)
+    {
+        if(posiciones[i] == ficha )
+        {
+            return false;
+        }
+    }
+
+    
+        posiciones[posicion] = ficha;
+        return true;
+    
+}
