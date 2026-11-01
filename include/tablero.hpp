@@ -1,5 +1,6 @@
 #ifndef TABLERO_HPP
 #define TABLERO_HPP
+#include "Cfg.hpp"
 
 class Tablero
 {
@@ -9,9 +10,13 @@ private:
 
 public:
     Tablero();
-    bool seconectan(int origen, int destino);
+    bool seconectan(int inicio, int final);
     int consultarposicion (int posicion);
     bool colocarficha (int posicion , int ficha);
+    bool moverlaficha (int inicio, int final);
+    bool fichamuerta (int posicion);
+    bool feet(Cfg &datos );
+    bool tvacio();
 };
 
 #endif

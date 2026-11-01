@@ -60,14 +60,14 @@ Tablero::Tablero()
 }
 
 
-bool Tablero::seconectann(int origen, int destino)
+bool Tablero::seconectan(int inicio, int final)
 {
-    if (origen < 0 || origen >= 28 || destino < 0 || destino >= 28)
+    if (inicio < 0 || inicio >= 28 || final < 0 || final >= 28)
     {
         return false;
     }
 
-    return conexiones[origen][destino];
+    return conexiones[inicio][final];
 }
 
 int Tablero:: consultarposicion (int posicion )
@@ -108,4 +108,72 @@ bool Tablero::colocarficha(int posicion, int ficha)
         posiciones[posicion] = ficha;
         return true;
     
+}
+
+bool Tablero::moverlaficha(int inicio, int final)
+{
+    if( inicio < 0 || inicio >=28 || final < 0 || final >= 28 )
+    {
+        return false;
+    }
+    else if (posiciones[inicio] == 0 || posiciones[final] != 0)
+    {
+        return false;
+    }
+
+    
+    posiciones[final] = posiciones[inicio];
+    posiciones[inicio] = 0;
+    
+    return true;
+}
+
+bool Tablero::fichamuerta(int posicion)
+{
+    if( posicion < 0 || posicion >=28 || posiciones[posicion] == 0 )
+    {
+        return false;
+    }
+
+    posiciones[posicion] = 0;
+    return true;
+
+}
+
+bool Tablero::feet(Cfg &datos)
+{
+    int puma = datos.getPosicionPuma();
+
+    if(colocarficha(puma,1) == false)
+    {
+        return false;
+    }
+
+    vector<int> perros = datos.getPosicionesPerros();
+
+    if (perros.size() != 12)
+    {
+        fichamuerta(puma); //se borra pq ya se habia colocado
+        return false;
+    }
+
+    for(int i = 0; i < 12; i ++)
+    {
+        int posicion_p = perros[i];
+       
+
+        if(colocarficha(posicion_p, i + 2) == false)
+        {
+           for (int j = 0;  j < i; j ++)
+            {
+                fichamuerta(perros[j]); //borrar los ya colocados
+            }
+            fichamuerta(puma);
+            return false;
+            
+        }
+    }
+
+    return true;
+
 }
