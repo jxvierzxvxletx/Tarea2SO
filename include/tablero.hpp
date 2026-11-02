@@ -1,6 +1,6 @@
 #ifndef TABLERO_HPP
 #define TABLERO_HPP
-#include "Cfg.hpp"
+#include "cfg.hpp"
 
 class Tablero
 {
