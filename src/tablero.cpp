@@ -70,7 +70,7 @@ bool Tablero::seconectan(int inicio, int final)
     return conexiones[inicio][final];
 }
 
-int Tablero:: consultarposicion (int posicion )
+int Tablero:: consultarposicion (int posicion ) //saber que hay dentro dde esa posicion
 {
     if(posicion < 0  || posicion >= 28)
     {
@@ -83,7 +83,7 @@ int Tablero:: consultarposicion (int posicion )
 
 }
 
-bool Tablero::colocarficha(int posicion, int ficha)
+bool Tablero::colocarficha(int posicion, int ficha) // iniciar tablero
 {
     
 
