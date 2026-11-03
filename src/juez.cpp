@@ -38,7 +38,7 @@ bool Juez::movalido(Tablero &tablero, int ficha, int inicio, int final)
     return true;
 }
 
-bool Juez::capturarperro(Tablero &tablero, int inicio, int final, int posicion_perro)
+bool Juez::capturarperrovalido(Tablero &tablero, int inicio, int final, int posicion_perro)
 {
     if(inicio < 0 || inicio >= 28 || posicion_perro < 0 || posicion_perro >= 28 || final < 0 || final >= 28  )
     {
@@ -131,3 +131,115 @@ bool Juez::capturarperro(Tablero &tablero, int inicio, int final, int posicion_p
    
 
 }
+
+bool Juez::capturar(Tablero &tablero, int inicio, int posicion_perro, int final)
+
+
+{
+    
+    if(capturarperrovalido(tablero, inicio, final, posicion_perro)  == false)
+    {
+        return false; //si no es valido, no funcioan nada//
+
+    }
+    else
+    {
+
+        if( tablero.moverlaficha(inicio, final) == false )
+        {
+            return false;
+        }
+        else
+        {
+            if(tablero.fichamuerta(posicion_perro) == false)
+            {
+                tablero.moverlaficha(final, inicio);
+
+                return false;
+            }
+
+            cont ++;
+        }
+
+    }
+
+
+    return true;
+
+
+}
+
+bool Juez::winpuma()
+{
+    if(cont >= 6)
+    {
+        return true;
+    }
+
+    return false;
+    
+}
+
+bool Juez::loosepuma(Tablero &tablero)
+{
+   int c_p = -1;
+
+   for (int i = 0; i < 28; i++)
+   {
+    if (tablero.consultarposicion(i) == 1)
+    {
+        c_p = i;
+        break;
+    }
+    else if (c_p == -1) 
+    {  
+    return false; 
+    }
+    else 
+    {
+        return false;
+    }
+   }
+
+   for (int i = 0; i < 28; i ++) //final
+   {
+     if(movalido(tablero,1, c_p, i) == true)
+     {
+        return false;
+     }
+   }
+
+   for (int i = 0; i < 28; i ++) //perro
+   {
+    for(int j= 0; j < 28; j ++) //final
+    {
+        if (capturarperrovalido(tablero, c_p, i, j))
+            {
+                return false;
+            }
+    }
+   }
+
+   return true;
+
+   
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
