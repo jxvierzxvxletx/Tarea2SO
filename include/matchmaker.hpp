@@ -3,6 +3,8 @@
 
 #include <pthread.h>
 #include <semaphore.h>
+#include <vector>
+using namespace std;
 
 class Matchmaker
 {
@@ -11,14 +13,15 @@ class Matchmaker
         int mesasactivas;
         int esperando;
         bool cerrado;
+        vector <int> ocupadas;
         sem_t cupos;
         pthread_mutex_t candado;
 
     public:
         Matchmaker(int m);
         ~Matchmaker();
-        bool solicitarMesa();
-        void liberarMesa();
+        int solicitarMesa();
+        void liberarMesa(int idmesa);
         void cerrar();
         int getMesasActivas();
 };
