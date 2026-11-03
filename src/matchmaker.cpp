@@ -7,6 +7,7 @@ Matchmaker::Matchmaker(int m)
     mesasactivas = 0;
     esperando = 0;
     cerrado = false;
+    ocupadas.resize(m + 1, 0);
     pthread_mutex_init(&candado, NULL);
     sem_init(&cupos, 0, maxmesas);
 }
@@ -17,13 +18,13 @@ Matchmaker::~Matchmaker()
     pthread_mutex_destroy(&candado);
 }
 
-bool Matchmaker::solicitarMesa()
+int Matchmaker::solicitarMesa()
 {
     pthread_mutex_lock(&candado);
     if (cerrado == true)
     {
         pthread_mutex_unlock(&candado);
-        return false;
+        return 0;
     }
     esperando++;
     pthread_mutex_unlock(&candado);
@@ -37,30 +38,52 @@ bool Matchmaker::solicitarMesa()
 
     pthread_mutex_lock(&candado);
     esperando--;
-    bool permitido = resultado == 0 && cerrado == false;
-    if (permitido)
+    if (resultado != 0 || cerrado == true)
     {
-        mesasactivas++;
+        pthread_mutex_unlock(&candado);
+        return 0;
+    }
+
+    int idmesa = 0;
+    for (int i = 1; i <= maxmesas; i++)
+    {
+        if (ocupadas[i] == 0)
+        {
+            ocupadas[i] = 1;
+            mesasactivas++;
+            idmesa = i;
+            break;
+        }
     }
     pthread_mutex_unlock(&candado);
-    return permitido;
+    return idmesa;
 }
 
-void Matchmaker::liberarMesa()
+void Matchmaker::liberarMesa(int idmesa)
 {
     pthread_mutex_lock(&candado);
-    bool liberar = mesasactivas > 0;
+
+    bool liberar = idmesa >= 1 && idmesa <= maxmesas;
+
     if (liberar)
     {
-        mesasactivas--;
+        liberar = ocupadas[idmesa] == 1;
     }
-    bool avisar = liberar && cerrado == false;
-    pthread_mutex_unlock(&candado);
-    if (avisar)
+
+    if (liberar)
     {
-        sem_post(&cupos);
+        ocupadas[idmesa] = 0;
+        mesasactivas--;
+
+        if (cerrado == false)
+        {
+            sem_post(&cupos);
+        }
     }
+
+    pthread_mutex_unlock(&candado);
 }
+
 
 void Matchmaker::cerrar()
 {
