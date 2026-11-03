@@ -2,18 +2,20 @@
 #define MATCHMAKER_HPP
 
 #include <pthread.h>
+#include <semaphore.h>
 
 class Matchmaker
 {
     private:
         int maxmesas;
         int mesasactivas;
+        int esperando;
         bool cerrado;
+        sem_t cupos;
         pthread_mutex_t candado;
-        pthread_cond_t aviso;
 
     public:
-        Matchmaker(int maxmesas);
+        Matchmaker(int m);
         ~Matchmaker();
         bool solicitarMesa();
         void liberarMesa();
