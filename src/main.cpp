@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <unistd.h>
+#include <atomic>
 #include "../include/argumentos.hpp"
 #include "../include/cfg.hpp"
 #include "../include/cliente.hpp"
@@ -16,59 +17,75 @@ Cfg * cfg;
 Registro * registro;
 SalaEspera * sala;
 Matchmaker * matchmaker;
-volatile sig_atomic_t sigintrecibido = 0;
+std::atomic<bool> sigintrecibido(false);
+std::atomic<bool> fallovigilante(false);
+static_assert(std::atomic<bool>::is_always_lock_free);
 bool detenervigilante = false;
 pthread_mutex_t candadovigilante;
 
 class DatosMesaPrueba
 {
     public:
-        int id;
+        int idpartida;
+        int idmesa;
         Cliente * puma;
         Cliente * perros;
 
-        DatosMesaPrueba(int n, Cliente * a, Cliente * b)
+        DatosMesaPrueba(int n, int mesa, Cliente * a, Cliente * b)
         {
-            id = n;
+            idpartida = n;
+            idmesa = mesa;
             puma = a;
             perros = b;
         }
 };
 
-void recibirSigint(int senal)
-{
-    (void)senal;
-    sigintrecibido = 1;
-}
-
 void * hiloVigilante(void * arg)
 {
-    (void)arg;
-    while (true)
-    {
-        if (sigintrecibido != 0)
-        {
-            sala -> cerrar();
-            matchmaker -> cerrar();
-            registro -> evento(0, "Se solicito cerrar el servidor");
-            return NULL;
-        }
+    sigset_t * senales = (sigset_t *)arg;
+    int senal = 0;
+    int resultado = sigwait(senales, &senal);
 
-        pthread_mutex_lock(&candadovigilante);
-        bool terminar = detenervigilante;
+    pthread_mutex_lock(&candadovigilante);
+
+    if (detenervigilante == true)
+    {
         pthread_mutex_unlock(&candadovigilante);
-        if (terminar)
-        {
-            return NULL;
-        }
-        usleep(10000);
+        return NULL;
     }
+
+    if (resultado != 0)
+    {
+        fallovigilante.store(true);
+        sigintrecibido.store(true);
+        sala -> cerrar();
+        matchmaker -> cerrar();
+        pthread_mutex_unlock(&candadovigilante);
+
+        registro -> evento(0, "Error en sigwait. Codigo: " + to_string(resultado));
+        return NULL;
+    }
+
+    sigintrecibido.store(true);
+    sala -> cerrar();
+    matchmaker -> cerrar();
+    pthread_mutex_unlock(&candadovigilante);
+
+    registro -> evento(0, "Se solicito cerrar el servidor");
+    return NULL;
 }
 
 void * hiloCliente(void * arg)
 {
     Cliente * c = (Cliente *)arg;
-    sala -> registrarLlegada(c);
+
+    pthread_mutex_lock(&candadovigilante);
+    if (sigintrecibido.load() == false)
+    {
+        sala -> registrarLlegada(c);
+    }
+    pthread_mutex_unlock(&candadovigilante);
+
     if (c -> getRol() == "sinasignar")
     {
         return NULL;
@@ -83,7 +100,7 @@ void * hiloCliente(void * arg)
 void * hiloMesaPrueba(void * arg)
 {
     DatosMesaPrueba * datos = (DatosMesaPrueba *)arg;
-    registro -> evento(datos -> id, "Partida de prueba: cliente " + to_string(datos -> puma -> getId()) + " (puma) y cliente " + to_string(datos -> perros -> getId()) + " (perros). Mesas activas: " + to_string(matchmaker -> getMesasActivas()));
+    registro -> evento(datos -> idmesa, "Partida " + to_string(datos -> idpartida) + " de prueba: cliente " + to_string(datos -> puma -> getId()) + " (puma) y cliente " + to_string(datos -> perros -> getId()) + " (perros). Mesas activas: " + to_string(matchmaker -> getMesasActivas()));
 
     for (int i = 0; i < 10; i++)
     {
@@ -96,16 +113,16 @@ void * hiloMesaPrueba(void * arg)
 
     if (sigintrecibido != 0)
     {
-        registro -> evento(datos -> id, "Partida de prueba interrumpida");
+        registro -> evento(datos -> idmesa, "Partida " + to_string(datos -> idpartida) + " de prueba interrumpida");
     }
     else
     {
-        registro -> evento(datos -> id, "Partida de prueba terminada");
+        registro -> evento(datos -> idmesa, "Partida " + to_string(datos -> idpartida) + " de prueba terminada");
     }
 
     datos -> puma -> avisarFin();
     datos -> perros -> avisarFin();
-    matchmaker -> liberarMesa();
+    matchmaker -> liberarMesa(datos -> idmesa);
     delete datos;
     return NULL;
 }
@@ -133,10 +150,14 @@ int main(int argc, char * argv[])
     sala = new SalaEspera();
     matchmaker = new Matchmaker(m);
     pthread_mutex_init(&candadovigilante, NULL);
+    
+    sigset_t senales;
+    sigemptyset(&senales);
+    sigaddset(&senales, SIGINT);
 
-    if (signal(SIGINT, recibirSigint) == SIG_ERR)
+    if (pthread_sigmask(SIG_BLOCK, &senales, NULL) != 0)
     {
-        registro -> evento(0, "Error al instalar el manejador de Ctrl+C");
+        registro -> evento(0, "Error al bloquear SIGINT");
         delete matchmaker;
         delete sala;
         delete registro;
@@ -147,7 +168,7 @@ int main(int argc, char * argv[])
     }
 
     pthread_t vigilante;
-    if (pthread_create(&vigilante, NULL, hiloVigilante, NULL) != 0)
+    if (pthread_create(&vigilante, NULL, hiloVigilante, &senales) != 0)
     {
         registro -> evento(0, "Error al crear hilo vigilante");
         delete matchmaker;
@@ -164,32 +185,43 @@ int main(int argc, char * argv[])
     vector <Cliente*> clientes;
     vector <pthread_t> hilosclientes;
     bool error = false;
+    
     for (int i = 0; i < n; i++)
     {
-        if (sigintrecibido != 0)
-        {
-            break;
-        }
-        Cliente * c = new Cliente(i + 1);
-        pthread_t hilo;
-        if (pthread_create(&hilo, NULL, hiloCliente, c) != 0)
-        {
-            delete c;
-            registro -> evento(0, "Error al crear hilo cliente");
-            sala -> cerrar();
-            matchmaker -> cerrar();
-            error = true;
-            break;
-        }
-        clientes.push_back(c);
-        hilosclientes.push_back(hilo);
+        pthread_mutex_lock(&candadovigilante);
+
+    if (sigintrecibido.load() == true)
+    {
+        pthread_mutex_unlock(&candadovigilante);
+        break;
     }
+
+    Cliente * c = new Cliente(i + 1);
+    pthread_t hilo;
+    int resultado = pthread_create(&hilo, NULL, hiloCliente, c);
+
+    pthread_mutex_unlock(&candadovigilante);
+
+    if (resultado != 0)
+    {
+        delete c;
+        registro -> evento(0, "Error al crear hilo cliente");
+        sala -> cerrar();
+        matchmaker -> cerrar();
+        error = true;
+        break;
+    }
+
+    clientes.push_back(c);
+    hilosclientes.push_back(hilo);
+    }
+
 
     vector <pthread_t> hilosmesas;
     int maxpartidas = hilosclientes.size() / 2;
     for (int p = 1; p <= maxpartidas && error == false; p++)
     {
-        if (sigintrecibido != 0)
+        if (sigintrecibido.load())
         {
             break;
         }
@@ -198,33 +230,44 @@ int main(int argc, char * argv[])
         {
             break;
         }
-        if (matchmaker -> solicitarMesa() == false)
+        int idmesa = matchmaker -> solicitarMesa();
+        if (idmesa == 0)
         {
             pareja[0] -> avisarFin();
             pareja[1] -> avisarFin();
             break;
         }
-        if (sigintrecibido != 0)
-        {
-            matchmaker -> liberarMesa();
-            pareja[0] -> avisarFin();
-            pareja[1] -> avisarFin();
-            break;
-        }
+        
+    pthread_mutex_lock(&candadovigilante);
 
-        DatosMesaPrueba * datos = new DatosMesaPrueba(p, pareja[0], pareja[1]);
-        pthread_t hilo;
-        if (pthread_create(&hilo, NULL, hiloMesaPrueba, datos) != 0)
-        {
-            registro -> evento(0, "Error al crear hilo de mesa de prueba");
-            delete datos;
-            matchmaker -> liberarMesa();
-            pareja[0] -> avisarFin();
-            pareja[1] -> avisarFin();
-            error = true;
-            break;
-        }
-        hilosmesas.push_back(hilo);
+    if (sigintrecibido.load() == true)
+    {
+        pthread_mutex_unlock(&candadovigilante);
+        matchmaker -> liberarMesa(idmesa);
+        pareja[0] -> avisarFin();
+        pareja[1] -> avisarFin();
+        break;
+    }
+
+    DatosMesaPrueba * datos = new DatosMesaPrueba(p, idmesa, pareja[0], pareja[1]);
+    pthread_t hilo;
+    int resultado = pthread_create(&hilo, NULL, hiloMesaPrueba, datos);
+
+    pthread_mutex_unlock(&candadovigilante);
+
+    if (resultado != 0)
+    {
+        registro -> evento(0, "Error al crear hilo de mesa de prueba");
+        delete datos;
+        matchmaker -> liberarMesa(idmesa);
+        pareja[0] -> avisarFin();
+        pareja[1] -> avisarFin();
+        error = true;
+        break;
+    }
+
+    hilosmesas.push_back(hilo);
+
     }
 
     for (size_t i = 0; i < hilosmesas.size(); i++)
@@ -246,16 +289,26 @@ int main(int argc, char * argv[])
     pthread_mutex_lock(&candadovigilante);
     detenervigilante = true;
     pthread_mutex_unlock(&candadovigilante);
+
+    if (sigintrecibido.load() == false)
+    {
+        pthread_kill(vigilante, SIGINT);
+    }
+
     pthread_join(vigilante, NULL);
 
-    if (sigintrecibido != 0)
+    if (error == true || fallovigilante.load() == true)
+    {
+        registro -> evento(0, "Prueba finalizada con errores, partidas iniciadas: " + to_string(hilosmesas.size()));
+    }
+    else if (sigintrecibido != 0)
     {
         registro -> evento(0, "Prueba interrumpida, partidas iniciadas: " + to_string(hilosmesas.size()));
     }
     else
     {
         registro -> evento(0, "Prueba finalizada, partidas iniciadas: " + to_string(hilosmesas.size()));
-    }
+    }   
     for (size_t i = 0; i < clientes.size(); i++)
     {
         delete clientes[i];
@@ -267,5 +320,5 @@ int main(int argc, char * argv[])
     delete cfg;
     delete args;
     pthread_mutex_destroy(&candadovigilante);
-    return error ? 1 : 0;
+    return (error || fallovigilante.load()) ? 1 : 0;
 }
