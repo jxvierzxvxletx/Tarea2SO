@@ -1,8 +1,18 @@
 #include "tablero.hpp"
 #include"juez.hpp"
 #include "mesa.hpp"
+#include "../include/logs.hpp"
+#include <vector>
+#include <string>
 #include <pthread.h>
 
+
+void Mesa::configurarRegistro(Registro * r, int mesa, int partida)
+{
+    registro = r;
+    idmesa = mesa;
+    idpartida = partida;
+}
 
 bool Mesa::iniciar(Cfg &datos)
 {
@@ -11,7 +21,25 @@ bool Mesa::iniciar(Cfg &datos)
         return false;
     }
 
-    e_mesa = Estado ::enjuego;
+    e_mesa = Estado::enjuego;
+    if (juez.loosepuma(tablero))
+    {
+        ganador = Ganador::perros;
+        e_mesa = Estado::terminada;
+    }
+    if (registro != nullptr)
+    {
+        vector<int> casillas;
+        for (int i = 0; i < 28; i++)
+        {
+            casillas.push_back(tablero.consultarposicion(i));
+        }
+        registro->eventoTablero(idmesa, "Partida " + to_string(idpartida) + ": tablero inicial", casillas);
+        if (ganador == Ganador::perros)
+        {
+            registro->evento(idmesa, "Partida " + to_string(idpartida) + ": ganan los perros por bloqueo inicial");
+        }
+    }
     return true;
 
 
@@ -130,7 +158,35 @@ bool Mesa::procesarsoli(const array<int, 5> &pedido)
 
         }
 
+        vector<int> casillas;
+        Ganador resultadoGanador = ganador;
+        if (resultado && registro != nullptr)
+        {
+            for (int i = 0; i < 28; i++)
+            {
+                casillas.push_back(tablero.consultarposicion(i));
+            }
+        }
         pthread_mutex_unlock(&candado);
+
+        if (resultado && registro != nullptr)
+        {
+            string mensaje = "Partida " + to_string(idpartida) + ": ficha " + to_string(ficha) +
+                " se mueve de " + to_string(inicio) + " a " + to_string(final);
+            if (es_captura)
+            {
+                mensaje += " y captura al perro en " + to_string(posicion_perro);
+            }
+            registro->eventoTablero(idmesa, mensaje, casillas);
+            if (resultadoGanador == Ganador::puma)
+            {
+                registro->evento(idmesa, "Partida " + to_string(idpartida) + ": gana el Puma por seis capturas");
+            }
+            else if (resultadoGanador == Ganador::perros)
+            {
+                registro->evento(idmesa, "Partida " + to_string(idpartida) + ": ganan los perros por bloqueo del Puma");
+            }
+        }
         return resultado;
 
 
