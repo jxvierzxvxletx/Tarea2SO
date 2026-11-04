@@ -7,6 +7,7 @@
 #include <array>
 #include <queue>
 using namespace std;
+class Registro;
 
 enum class Estado
 {
@@ -24,8 +25,6 @@ enum class Ganador
 
 
 
-
-
 class Mesa
 {
 private:
@@ -37,12 +36,16 @@ private:
     pthread_cond_t aviso;
     queue<array<int, 5>> solicitudes;
     Ganador ganador = Ganador:: Ninguno;
+    Registro * registro = nullptr;
+    int idmesa = 0;
+    int idpartida = 0;
     
 
 ;
 
 public:
 
+void configurarRegistro(Registro * registro, int mesa, int partida);
 bool iniciar(Cfg &datos);
 
 bool f_quierejugar(int ficha, int inicio, int final,bool es_captura, int posicion_perro);
@@ -59,8 +62,6 @@ Mesa();
 
 bool copiartablero(Tablero &copia);
 
-Ganador getganador();
-
 
 
   
@@ -69,6 +70,5 @@ Ganador getganador();
 void *hiloJuez(void *arg);
 
 bool jugarpartida(Mesa &mesa, int retardomin, int retardomax,unsigned int semilla);
-
 
 #endif
