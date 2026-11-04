@@ -102,3 +102,44 @@ void *hiloficha(void *argumento)
         }
     }
 }
+
+
+bool jugarpartida(Mesa &mesa, int retardomin, int retardomax, unsigned int semilla)
+{
+    pthread_t juez_hilo;
+    pthread_t hilos[13];
+    datosficha argumentos[13];
+    int creados = 0;
+
+    if (pthread_create(&juez_hilo, nullptr, hiloJuez, &mesa) != 0)
+    {
+        mesa.mesacerrada();
+        return false;
+    }
+
+    for (int i = 0; i < 13; i ++)
+    {
+        argumentos[i].mesa = &mesa;
+        argumentos[i].ficha = i + 1;
+        argumentos[i].retardomin = retardomin;
+        argumentos[i].retardomax = retardomax;
+         argumentos[i].semilla = semilla + i;
+
+        if (pthread_create(&hilos[i], nullptr, hiloficha, &argumentos[i]) != 0)
+        {
+            mesa.mesacerrada();
+            break;
+        }
+
+        creados++;
+    }
+
+    pthread_join(juez_hilo, nullptr);
+
+    for (int i = 0; i < creados; i ++)
+    {
+        pthread_join(hilos[i], nullptr);
+    }
+
+    return creados == 13;
+}

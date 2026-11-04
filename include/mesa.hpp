@@ -64,4 +64,6 @@ bool copiartablero(Tablero &copia);
 
 void *hiloJuez(void *arg);
 
+bool jugarpartida(Mesa &mesa, int retardomin, int retardomax,unsigned int semilla);
+
 #endif
