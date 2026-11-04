@@ -171,6 +171,21 @@ void * hiloJuez(void * arg)
     return NULL;
 }
 
+bool Mesa::copiartablero(Tablero &copia)
+{
+    pthread_mutex_lock(&candado);
+
+    if (e_mesa != Estado::enjuego)
+    {
+        pthread_mutex_unlock(&candado);
+        return false;
+    }
+
+    copia = tablero;
+
+    pthread_mutex_unlock(&candado);
+    return true;
+}
 
 
 

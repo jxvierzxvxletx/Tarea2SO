@@ -55,6 +55,8 @@ void juezfuncionando();
 Mesa();
 ~Mesa();
 
+bool copiartablero(Tablero &copia);
+
 
 
   
