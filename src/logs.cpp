@@ -72,35 +72,45 @@ void Registro::evento(int mesa, string texto)
     pthread_mutex_unlock(&candado);
 }
 
-// Imprime el tablero completo. casillas[i] dice que hay en la posicion i:
-// 0 libre, 1 puma, 2 a 13 perros. Posiciones 0 a 24 = cuadricula, 25 = T, 26 = SI, 27 = SD.
-void Registro::tablero(int mesa, vector <int> casillas)
+string Registro::textoTablero(int mesa, const vector<int> & casillas)
 {
-    int total = casillas.size();
-    if (total != cfg -> getTotalCasillas())
+    if (casillas.size() != static_cast<size_t>(cfg->getTotalCasillas()))
     {
-        evento(mesa, "Error al imprimir, el tablero debe tener " + aTexto(cfg -> getTotalCasillas()) + " casillas y trae " + aTexto(total));
-        return;
+        return "[Mesa " + aTexto(mesa) + "] Error: tablero de tamaño incorrecto";
     }
     string vacio = "     ";
     string texto = "[Mesa " + aTexto(mesa) + "] Tablero:\n";
-    texto = texto + vacio + vacio + "[" + simbolo(casillas[25]) + "]\n";
-    texto = texto + vacio + "[" + simbolo(casillas[26]) + "]" + vacio + "[" + simbolo(casillas[27]) + "]\n";
-    // Cuadricula: una linea por fila
-    int filas = cfg -> getFilas();
-    int columnas = cfg -> getColumnas();
+    texto += vacio + vacio + "[" + simbolo(casillas[25]) + "]\n";
+    texto += vacio + "[" + simbolo(casillas[26]) + "]" + vacio + "[" + simbolo(casillas[27]) + "]\n";
+    int filas = cfg->getFilas();
+    int columnas = cfg->getColumnas();
     for (int f = 0; f < filas; f++)
     {
         for (int c = 0; c < columnas; c++)
         {
-            texto = texto + "[" + simbolo(casillas[f * columnas + c]) + "]";
+            texto += "[" + simbolo(casillas[f * columnas + c]) + "]";
         }
         if (f < filas - 1)
         {
-            texto = texto + "\n";
+            texto += "\n";
         }
     }
+    return texto;
+}
+
+void Registro::tablero(int mesa, vector<int> casillas)
+{
+    string texto = textoTablero(mesa, casillas);
     pthread_mutex_lock(&candado);
+    cout << texto << endl;
+    pthread_mutex_unlock(&candado);
+}
+
+void Registro::eventoTablero(int mesa, string mensaje, const vector<int> & casillas)
+{
+    string texto = textoTablero(mesa, casillas);
+    pthread_mutex_lock(&candado);
+    cout << "[Mesa " << aTexto(mesa) << "] " << mensaje << endl;
     cout << texto << endl;
     pthread_mutex_unlock(&candado);
 }
