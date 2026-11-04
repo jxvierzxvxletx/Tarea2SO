@@ -182,64 +182,38 @@ bool Juez::winpuma()
 
 bool Juez::loosepuma(Tablero &tablero)
 {
-   int c_p = -1;
-
-   for (int i = 0; i < 28; i++)
-   {
-    if (tablero.consultarposicion(i) == 1)
+    int posicionpuma = -1;
+    for (int i = 0; i < 28; i++)
     {
-        c_p = i;
-        break;
+        if (tablero.consultarposicion(i) == 1)
+        {
+            posicionpuma = i;
+            break;
+        }
     }
-    else if (c_p == -1) 
-    {  
-    return false; 
-    }
-    else 
+
+    if (posicionpuma == -1)
     {
         return false;
     }
-   }
 
-   for (int i = 0; i < 28; i ++) //final
-   {
-     if(movalido(tablero,1, c_p, i) == true)
-     {
-        return false;
-     }
-   }
-
-   for (int i = 0; i < 28; i ++) //perro
-   {
-    for(int j= 0; j < 28; j ++) //final
+    for (int i = 0; i < 28; i++)
     {
-        if (capturarperrovalido(tablero, c_p, i, j))
+        if (movalido(tablero, 1, posicionpuma, i))
+        {
+            return false;
+        }
+    }
+
+    for (int perro = 0; perro < 28; perro++)
+    {
+        for (int destino = 0; destino < 28; destino++)
+        {
+            if (capturarperrovalido(tablero, posicionpuma, destino, perro))
             {
                 return false;
             }
+        }
     }
-   }
-
-   return true;
-
-   
-
+    return true;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
