@@ -36,6 +36,7 @@ private:
     pthread_cond_t aviso;
     queue<array<int, 5>> solicitudes;
     Ganador ganador = Ganador:: Ninguno;
+    int abandonoPendiente = 0;
     Registro * registro = nullptr;
     int idmesa = 0;
     int idpartida = 0;
@@ -52,6 +53,7 @@ bool f_quierejugar(int ficha, int inicio, int final,bool es_captura, int posicio
 
 bool sacarsoli(array<int, 5> &solicitud);
 void mesacerrada();
+bool notificarAbandono(const string &rol);
 
 bool procesarsoli(const array<int, 5> &pedido);
 
