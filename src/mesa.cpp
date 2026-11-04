@@ -66,7 +66,7 @@ bool Mesa::sacarsoli(array<int, 5> &solicitud)
 {
     pthread_mutex_lock(&candado);
 
-    while(e_mesa == Estado::enjuego && solicitudes.empty())
+    while(e_mesa == Estado::enjuego && solicitudes.empty() && abandonoPendiente == 0)
     {
          pthread_cond_wait(&aviso, &candado);
          
@@ -79,8 +79,16 @@ bool Mesa::sacarsoli(array<int, 5> &solicitud)
 
     }
 
-    solicitud = solicitudes.front();
-    solicitudes.pop();
+    if (abandonoPendiente != 0)
+    {
+        solicitud = {-1, abandonoPendiente, 0, 0, 0};
+        abandonoPendiente = 0;
+    }
+    else
+    {
+        solicitud = solicitudes.front();
+        solicitudes.pop();
+    }
     pthread_mutex_unlock(&candado);
     return true;
 
@@ -101,6 +109,26 @@ void Mesa::mesacerrada()
 
 }
 
+bool Mesa::notificarAbandono(const string &rol)
+{
+    if (rol != "puma" && rol != "perros")
+    {
+        return false;
+    }
+
+    pthread_mutex_lock(&candado);
+    if (e_mesa != Estado::enjuego || abandonoPendiente != 0)
+    {
+        pthread_mutex_unlock(&candado);
+        return false;
+    }
+
+    abandonoPendiente = rol == "puma" ? 1 : 2;
+    pthread_cond_signal(&aviso);
+    pthread_mutex_unlock(&candado);
+    return true;
+}
+
 bool Mesa::procesarsoli(const array<int, 5> &pedido)
 {
         pthread_mutex_lock(&candado);
@@ -109,6 +137,24 @@ bool Mesa::procesarsoli(const array<int, 5> &pedido)
         {
             pthread_mutex_unlock(&candado);
             return false;
+        }
+
+        if (pedido[0] == -1)
+        {
+            bool abandonoPuma = pedido[1] == 1;
+            ganador = abandonoPuma ? Ganador::perros : Ganador::puma;
+            e_mesa = Estado::terminada;
+            pthread_cond_broadcast(&aviso);
+            pthread_mutex_unlock(&candado);
+
+            if (registro != nullptr)
+            {
+                string mensaje = abandonoPuma
+                    ? "Partida " + to_string(idpartida) + ": ganan los perros por abandono del Puma"
+                    : "Partida " + to_string(idpartida) + ": gana el Puma por abandono de los perros";
+                registro->evento(idmesa, mensaje);
+            }
+            return true;
         }
 
         int  ficha          = pedido[0];
@@ -242,7 +288,6 @@ bool Mesa::copiartablero(Tablero &copia)
     pthread_mutex_unlock(&candado);
     return true;
 }
-
 
 
 
