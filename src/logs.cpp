@@ -1,9 +1,60 @@
 #include "../include/logs.hpp"
+#include <cstdlib>
+#include <unistd.h>
 
-Registro::Registro(Cfg * cfg)
+namespace
 {
-    this -> cfg = cfg;
-    pthread_mutex_init(&candado, NULL);
+    bool coloresActivos()
+    {
+        return isatty(STDOUT_FILENO) == 1 && getenv("NO_COLOR") == nullptr;
+    }
+
+    string numeroDosDigitos(int numero)
+    {
+        if (numero < 10)
+        {
+            return "0" + to_string(numero);
+        }
+        return to_string(numero);
+    }
+
+    void agregarLinea(string &salida, const string &contenido, bool centrar)
+    {
+        const size_t ancho = 61;
+        size_t espacios = contenido.size() < ancho ? ancho - contenido.size() : 0;
+        size_t izquierda = centrar ? espacios / 2 : 0;
+        size_t derecha = espacios - izquierda;
+        salida += "    | " + string(izquierda, ' ') + contenido + string(derecha, ' ') + " |\n";
+    }
+
+    string pintarMensaje(const string &mensaje)
+    {
+        if (!coloresActivos())
+        {
+            return mensaje;
+        }
+        if (mensaje.find("gana el Puma") != string::npos ||
+            mensaje.find("ganan los perros") != string::npos)
+        {
+            return "\033[1;32m" + mensaje + "\033[0m";
+        }
+        if (mensaje.find("Error") != string::npos ||
+            mensaje.find("error") != string::npos)
+        {
+            return "\033[1;31m" + mensaje + "\033[0m";
+        }
+        if (mensaje.find("[CAPTURA]") != string::npos)
+        {
+            return "\033[1;33m" + mensaje + "\033[0m";
+        }
+        return mensaje;
+    }
+}
+
+Registro::Registro(Cfg *configuracion)
+{
+    cfg = configuracion;
+    pthread_mutex_init(&candado, nullptr);
 }
 
 Registro::~Registro()
@@ -11,106 +62,138 @@ Registro::~Registro()
     pthread_mutex_destroy(&candado);
 }
 
-string Registro::aTexto(int n)
+string Registro::aTexto(int numero)
 {
-    if (n == 0)
-    {
-        return "0";
-    }
-    bool negativo = false;
-    if (n < 0)
-    {
-        negativo = true;
-        n = -n;
-    }
-    string resultado = "";
-    while (n > 0)
-    {
-        resultado = string(1, '0' + n % 10) + resultado;
-        n = n / 10;
-    }
-    if (negativo)
-    {
-        resultado = "-" + resultado;
-    }
-    return resultado;
+    return to_string(numero);
 }
 
-// Lo que se dibuja dentro de cada casilla (siempre de 3 letras):
-// " . " libre, " P " puma, "D1 " a "D12" los perros (ids 2 a 13)
 string Registro::simbolo(int valor)
 {
     if (valor == 0)
     {
-        return " Libre ";
+        return " .  ";
     }
     if (valor == 1)
     {
-        return " Puma ";
+        return "PUMA";
     }
-    if (valor < 0 || valor > cfg -> getCantidadPerros() + 1)
+    if (valor >= 2 && valor <= cfg->getCantidadPerros() + 1)
     {
-        return " ? ";
+        return "D" + numeroDosDigitos(valor - 1) + " ";
     }
-    string texto = "Perro " + aTexto(valor - 1);
-    while (texto.size() < 3)
-    {
-        texto = texto + " ";
-    }
-    return texto;
+    return "????";
 }
 
-void Registro::evento(int mesa, string texto)
+void Registro::evento(int mesa, string mensaje)
 {
-    string etiqueta = "[Servidor] ";
-    if (mesa > 0)
-    {
-        etiqueta = "[Mesa " + aTexto(mesa) + "] ";
-    }
+    string etiqueta = mesa > 0 ? "[Mesa " + aTexto(mesa) + "] " : "[Servidor] ";
+
     pthread_mutex_lock(&candado);
-    cout << etiqueta << texto << endl;
+
+    if (mesa > 0 && mensaje.find("asignada:") != string::npos)
+    {
+        cout << "\n" << string(69, '=') << "\n";
+    }
+
+    if (coloresActivos())
+    {
+        cout << (mesa > 0 ? "\033[1;36m" : "\033[1;35m") << etiqueta << "\033[0m";
+    }
+    else
+    {
+        cout << etiqueta;
+    }
+    cout << pintarMensaje(mensaje) << '\n';
+
+    if (mensaje == "Partida finalizada")
+    {
+        cout << string(69, '=') << "\n\n";
+    }
+
     pthread_mutex_unlock(&candado);
 }
 
-string Registro::textoTablero(int mesa, const vector<int> & casillas)
+string Registro::textoTablero(int mesa, const vector<int> &casillas)
 {
     if (casillas.size() != static_cast<size_t>(cfg->getTotalCasillas()))
     {
-        return "[Mesa " + aTexto(mesa) + "] Error: tablero de tamaño incorrecto";
+        return "[Mesa " + aTexto(mesa) + "] Error: tablero de tamano incorrecto";
     }
-    string vacio = "     ";
-    string texto = "[Mesa " + aTexto(mesa) + "] Tablero:\n";
-    texto += vacio + vacio + "[" + simbolo(casillas[25]) + "]\n";
-    texto += vacio + "[" + simbolo(casillas[26]) + "]" + vacio + "[" + simbolo(casillas[27]) + "]\n";
-    int filas = cfg->getFilas();
-    int columnas = cfg->getColumnas();
-    for (int f = 0; f < filas; f++)
+
+    auto celda = [&](int posicion)
     {
-        for (int c = 0; c < columnas; c++)
+        return "[" + numeroDosDigitos(posicion) + ":" + simbolo(casillas[posicion]) + "]";
+    };
+
+    const string borde = "    +" + string(63, '-') + "+\n";
+    string resultado = "[Mesa " + aTexto(mesa) + "] Tablero:\n";
+    resultado += borde;
+    agregarLinea(resultado, "TABLERO KOMIKAN - MESA " + aTexto(mesa), true);
+    agregarLinea(resultado, "TRONO", true);
+    agregarLinea(resultado, celda(25), true);
+    agregarLinea(resultado, celda(26) + "   " + celda(27), true);
+    agregarLinea(resultado, "CUADRICULA PRINCIPAL", true);
+
+    for (int fila = 0; fila < cfg->getFilas(); fila++)
+    {
+        string contenido;
+        for (int columna = 0; columna < cfg->getColumnas(); columna++)
         {
-            texto += "[" + simbolo(casillas[f * columnas + c]) + "]";
+            if (columna > 0)
+            {
+                contenido += " ";
+            }
+            contenido += celda(fila * cfg->getColumnas() + columna);
         }
-        if (f < filas - 1)
+        agregarLinea(resultado, contenido, true);
+    }
+
+    agregarLinea(resultado, "PUMA = Puma    D01-D12 = Perros    . = libre", true);
+    resultado += borde;
+
+    if (coloresActivos())
+    {
+        for (int posicion = 0; posicion < cfg->getTotalCasillas(); posicion++)
         {
-            texto += "\n";
+            string casilla = celda(posicion);
+            string color = casillas[posicion] == 1 ? "\033[1;33m" :
+                           casillas[posicion] >= 2 ? "\033[1;36m" : "\033[2m";
+            string pintada = "[" + numeroDosDigitos(posicion) + ":" +
+                             color + simbolo(casillas[posicion]) + "\033[0m]";
+            size_t indice = resultado.find(casilla);
+            if (indice != string::npos)
+            {
+                resultado.replace(indice, casilla.size(), pintada);
+            }
         }
     }
-    return texto;
+
+    return resultado;
 }
 
 void Registro::tablero(int mesa, vector<int> casillas)
 {
-    string texto = textoTablero(mesa, casillas);
+    string contenido = textoTablero(mesa, casillas);
     pthread_mutex_lock(&candado);
-    cout << texto << endl;
+    cout << contenido;
     pthread_mutex_unlock(&candado);
 }
 
-void Registro::eventoTablero(int mesa, string mensaje, const vector<int> & casillas)
+void Registro::eventoTablero(int mesa, string mensaje, const vector<int> &casillas)
 {
-    string texto = textoTablero(mesa, casillas);
+    string contenido = textoTablero(mesa, casillas);
+    string etiqueta = "[Mesa " + aTexto(mesa) + "] ";
+
     pthread_mutex_lock(&candado);
-    cout << "[Mesa " << aTexto(mesa) << "] " << mensaje << endl;
-    cout << texto << endl;
+    if (coloresActivos())
+    {
+        cout << "\033[1;36m" << etiqueta << "\033[0m";
+    }
+    else
+    {
+        cout << etiqueta;
+    }
+    cout << pintarMensaje(mensaje) << '\n';
+    cout << contenido;
     pthread_mutex_unlock(&candado);
 }
