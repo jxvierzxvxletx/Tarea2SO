@@ -1,5 +1,7 @@
 #include <algorithm>
 #include <atomic>
+#include <cstdlib>
+#include <unistd.h>
 #include <iostream>
 #include <pthread.h>
 #include <signal.h>
@@ -26,7 +28,7 @@ bool detenervigilante = false;
 pthread_mutex_t candadovigilante;
 vector<Mesa *> mesasactivas;
 
-class DatosMesaPrueba
+class DatosPartida
 {
 public:
     int idpartida;
@@ -34,7 +36,7 @@ public:
     Cliente *puma;
     Cliente *perros;
 
-    DatosMesaPrueba(int n, int mesa, Cliente *a, Cliente *b)
+    DatosPartida(int n, int mesa, Cliente *a, Cliente *b)
     {
         idpartida = n;
         idmesa = mesa;
@@ -42,6 +44,21 @@ public:
         perros = b;
     }
 };
+
+class DatosAbandonoPrueba
+{
+public:
+    Mesa *mesa;
+    string rol;
+};
+
+void *hiloAbandonoPrueba(void *arg)
+{
+    DatosAbandonoPrueba *datos = static_cast<DatosAbandonoPrueba *>(arg);
+    usleep(10000);
+    datos->mesa->notificarAbandono(datos->rol);
+    return nullptr;
+}
 
 void *hiloVigilante(void *arg)
 {
@@ -119,10 +136,17 @@ void *hiloCliente(void *arg)
     return nullptr;
 }
 
-void *hiloMesaPrueba(void *arg)
+void *hiloMesa(void *arg)
 {
-    DatosMesaPrueba *datos = static_cast<DatosMesaPrueba *>(arg);
+    DatosPartida *datos = static_cast<DatosPartida *>(arg);
     Mesa mesa;
+    mesa.configurarRegistro(registro, datos->idmesa, datos->idpartida);
+    registro->evento(
+        datos->idmesa,
+        "Partida " + to_string(datos->idpartida) + " asignada: cliente " +
+        to_string(datos->puma->getId()) + " (puma) y cliente " +
+        to_string(datos->perros->getId()) + " (perros)"
+    );
 
     if (!mesa.iniciar(*cfg))
     {
@@ -143,13 +167,27 @@ void *hiloMesaPrueba(void *arg)
 
         if (iniciar_partida)
         {
-            registro->evento(
-                datos->idmesa,
-                "Inicia partida " + to_string(datos->idpartida) +
-                ": cliente " + to_string(datos->puma->getId()) +
-                " (puma) y cliente " + to_string(datos->perros->getId()) +
-                " (perros)"
-            );
+            const char *pruebaPartida = getenv("KOMIKAN_ABANDONO_PARTIDA");
+            const char *pruebaRol = getenv("KOMIKAN_ABANDONO_ROL");
+            DatosAbandonoPrueba datosAbandono;
+            pthread_t hiloAbandono;
+            bool abandonoCreado = false;
+
+            if (pruebaPartida != nullptr && pruebaRol != nullptr &&
+                to_string(datos->idpartida) == pruebaPartida &&
+                (string(pruebaRol) == "puma" || string(pruebaRol) == "perros"))
+            {
+                datosAbandono.mesa = &mesa;
+                datosAbandono.rol = pruebaRol;
+                if (pthread_create(&hiloAbandono, nullptr, hiloAbandonoPrueba, &datosAbandono) == 0)
+                {
+                    abandonoCreado = true;
+                }
+                else
+                {
+                    registro->evento(datos->idmesa, "Error al crear la prueba de abandono");
+                }
+            }
 
             bool hilos_creados = jugarpartida(
                 mesa,
@@ -157,6 +195,11 @@ void *hiloMesaPrueba(void *arg)
                 cfg->getRetardoMax(),
                 cfg->getSemilla()
             );
+
+            if (abandonoCreado)
+            {
+                pthread_join(hiloAbandono, nullptr);
+            }
 
             pthread_mutex_lock(&candadovigilante);
 
@@ -331,12 +374,12 @@ int main(int argc, char *argv[])
             break;
         }
 
-        DatosMesaPrueba *datos = new DatosMesaPrueba(
+        DatosPartida *datos = new DatosPartida(
             p, idmesa, pareja[0], pareja[1]
         );
 
         pthread_t hilo;
-        int resultado = pthread_create(&hilo, nullptr, hiloMesaPrueba, datos);
+        int resultado = pthread_create(&hilo, nullptr, hiloMesa, datos);
 
         pthread_mutex_unlock(&candadovigilante);
 
