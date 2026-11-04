@@ -44,7 +44,6 @@ tarea2SO/
 ├── config.txt
 ├── README.md
 ├── informe.pdf
-└── .gitignore
 ```
 
 El archivo `config.txt` está en la **carpeta raíz**. Es opcional al ejecutar el programa. El informe se entrega por separado en PDF, con un máximo de dos páginas, según el enunciado.
