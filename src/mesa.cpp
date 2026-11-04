@@ -217,11 +217,13 @@ bool Mesa::procesarsoli(const array<int, 5> &pedido)
 
         if (resultado && registro != nullptr)
         {
-            string mensaje = "Partida " + to_string(idpartida) + ": ficha " + to_string(ficha) +
-                " se mueve de " + to_string(inicio) + " a " + to_string(final);
+            string nombreFicha = ficha == 1 ? "Puma" : "Perro " + to_string(ficha - 1);
+            string mensaje = "Partida " + to_string(idpartida) + ": ";
+            mensaje += es_captura ? "[CAPTURA] " : "[MOVIMIENTO] ";
+            mensaje += nombreFicha + " | posicion " + to_string(inicio) + " -> " + to_string(final);
             if (es_captura)
             {
-                mensaje += " y captura al perro en " + to_string(posicion_perro);
+                mensaje += " | perro capturado en " + to_string(posicion_perro);
             }
             registro->eventoTablero(idmesa, mensaje, casillas);
             if (resultadoGanador == Ganador::puma)
